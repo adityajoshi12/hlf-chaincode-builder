@@ -47,5 +47,5 @@ jobs:
           package_manager: yarn
           artifact_name: # optional, default is github-pages
           debug_mode: # optional, default is false
-          working_path: hlf-chaincode-builder
+          working_path: ./
             
