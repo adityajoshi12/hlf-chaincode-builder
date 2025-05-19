@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react';
-import { X, Plus, Trash2, Save, Code, ArrowRight, Database, FileText } from 'lucide-react';
+import { X, Plus, Trash2, Save, Code, ArrowRight, Database, FileText, Moon, Sun } from 'lucide-react';
+import { useTheme } from './ThemeContext';
 
 // Main component for the chaincode builder
 export default function ChaincodeDragAndDropBuilder() {
+  const { theme, toggleTheme } = useTheme();
   // Define available chaincode blocks
   const [blocks] = useState([
     { id: 'init', name: 'Init Function', category: 'core', color: 'bg-blue-600' },
@@ -209,10 +211,85 @@ export default function ChaincodeDragAndDropBuilder() {
             assetTypeName = "assets";
           }
           
+          const assetType = globalAssetType;
+          const assetVarName = assetType.charAt(0).toLowerCase() + assetType.slice(1);
+          
           code += `// InitLedger adds a base set of ${assetTypeName} to the ledger\n`;
           code += `func (s *SmartContract) InitLedger(ctx contractapi.TransactionContextInterface) error {\n`;
           code += `\tfmt.Println("${props.message || 'Initializing the chaincode'}")\n`;
-          code += `\treturn nil\n`;
+
+          // Only add sample assets if there's a create asset block
+          if (canvas.some(b => b.blockId === 'createAsset')) {
+            code += `\n\t// Create some initial ${assetTypeName}\n`;
+            code += `\t${assetVarName}s := []${assetType}{\n`;
+            
+            // Generate 3 sample assets
+            for (let i = 1; i <= 3; i++) {
+              code += `\t\t{\n`;
+              
+              // Generate sample values for each field
+              assetFields.forEach(field => {
+                let sampleValue;
+                switch(field.type) {
+                  case 'string':
+                    if (field.name.toLowerCase() === 'id' || field.jsonTag.toLowerCase() === 'id') {
+                      sampleValue = `"asset${i}"`;
+                    } else if (field.name.toLowerCase() === 'owner' || field.jsonTag.toLowerCase() === 'owner') {
+                      sampleValue = `"User${i}"`;
+                    } else if (field.name.toLowerCase() === 'description' || field.jsonTag.toLowerCase() === 'description') {
+                      sampleValue = `"Sample ${assetType} ${i}"`;
+                    } else {
+                      sampleValue = `"Sample ${field.name} ${i}"`;
+                    }
+                    break;
+                  case 'int':
+                    sampleValue = i * 100;
+                    break;
+                  case 'float64':
+                    sampleValue = i * 10.5;
+                    break;
+                  case 'bool':
+                    sampleValue = i % 2 === 0 ? 'true' : 'false';
+                    break;
+                  case '[]string':
+                    sampleValue = `[]string{"item${i}-1", "item${i}-2"}`;
+                    break;
+                  case 'map[string]string':
+                    sampleValue = `map[string]string{"key${i}": "value${i}"}`;
+                    break;
+                  default:
+                    sampleValue = `"${field.name}${i}"`;
+                }
+                
+                code += `\t\t\t${field.name}:`.padEnd(22) + `${sampleValue},\n`;
+              });
+              
+              code += i < 3 ? `\t\t},\n` : `\t\t},\n`;
+            }
+            
+            code += `\t}\n\n`;
+            
+            // Find the ID field for using as key
+            const idField = assetFields.find(field => 
+              field.name.toLowerCase() === 'id' || 
+              field.jsonTag.toLowerCase() === 'id'
+            );
+            const idProperty = idField ? idField.name : 'ID';
+            
+            code += `\tfor _, ${assetVarName} := range ${assetVarName}s {\n`;
+            code += `\t\t${assetVarName}JSON, err := json.Marshal(${assetVarName})\n`;
+            code += `\t\tif err != nil {\n`;
+            code += `\t\t\treturn err\n`;
+            code += `\t\t}\n\n`;
+            code += `\t\terr = ctx.GetStub().PutState(${assetVarName}.${idProperty}, ${assetVarName}JSON)\n`;
+            code += `\t\tif err != nil {\n`;
+            code += `\t\t\treturn fmt.Errorf("failed to put to world state: %v", err)\n`;
+            code += `\t\t}\n`;
+            code += `\t}\n`;
+          } else {
+            code += `\treturn nil\n`;
+          }
+          
           code += `}\n\n`;
           break;
         }
@@ -223,18 +300,36 @@ export default function ChaincodeDragAndDropBuilder() {
           const assetVarName = assetType.charAt(0).toLowerCase() + assetType.slice(1);
           
           code += `// Create${assetType} creates a new ${assetType.toLowerCase()} in the ledger\n`;
-          code += `func (s *SmartContract) Create${assetType}(ctx contractapi.TransactionContextInterface, id string, description string, owner string, value int) error {\n`;
+          
+          // Generate function parameters dynamically based on assetFields
+          let paramList = [];
+          let structInitializers = [];
+          
+          assetFields.forEach(field => {
+            const paramName = field.jsonTag.toLowerCase();
+            paramList.push(`${paramName} ${field.type}`);
+            structInitializers.push(`\t\t${field.name}:`.padEnd(20) + `${paramName},`);
+          });
+          
+          code += `func (s *SmartContract) Create${assetType}(ctx contractapi.TransactionContextInterface, ${paramList.join(', ')}) error {\n`;
           code += `\t${assetVarName} := ${assetType}{\n`;
-          code += `\t\tID:           id,\n`;
-          code += `\t\tDescription:  description,\n`;
-          code += `\t\tOwner:       owner,\n`;
-          code += `\t\tValue:       value,\n`;
+          structInitializers.forEach(initializer => {
+            code += `${initializer}\n`;
+          });
           code += `\t}\n\n`;
           code += `\t${assetVarName}JSON, err := json.Marshal(${assetVarName})\n`;
           code += `\tif err != nil {\n`;
           code += `\t\treturn err\n`;
           code += `\t}\n\n`;
-          code += `\treturn ctx.GetStub().PutState(id, ${assetVarName}JSON)\n`;
+          
+          // Use the ID field for the key in PutState
+          const idField = assetFields.find(field => 
+            field.name.toLowerCase() === 'id' || 
+            field.jsonTag.toLowerCase() === 'id'
+          );
+          const idParam = idField ? idField.jsonTag.toLowerCase() : 'id';
+          
+          code += `\treturn ctx.GetStub().PutState(${idParam}, ${assetVarName}JSON)\n`;
           code += `}\n\n`;
           break;
         }
@@ -269,25 +364,42 @@ export default function ChaincodeDragAndDropBuilder() {
           const assetVarName = assetType.charAt(0).toLowerCase() + assetType.slice(1);
           
           code += `// Update${assetType} updates an existing ${assetType.toLowerCase()} in the ledger\n`;
-          code += `func (s *SmartContract) Update${assetType}(ctx contractapi.TransactionContextInterface, id string, description string, owner string, value int) error {\n`;
-          code += `\texists, err := s.${assetType}Exists(ctx, id)\n`;
+          
+          // Generate function parameters dynamically based on assetFields
+          let paramList = [];
+          let structInitializers = [];
+          
+          assetFields.forEach(field => {
+            const paramName = field.jsonTag.toLowerCase();
+            paramList.push(`${paramName} ${field.type}`);
+            structInitializers.push(`\t\t${field.name}:`.padEnd(20) + `${paramName},`);
+          });
+          
+          // Find the ID field for existence check
+          const idField = assetFields.find(field => 
+            field.name.toLowerCase() === 'id' || 
+            field.jsonTag.toLowerCase() === 'id'
+          );
+          const idParam = idField ? idField.jsonTag.toLowerCase() : 'id';
+          
+          code += `func (s *SmartContract) Update${assetType}(ctx contractapi.TransactionContextInterface, ${paramList.join(', ')}) error {\n`;
+          code += `\texists, err := s.${assetType}Exists(ctx, ${idParam})\n`;
           code += `\tif err != nil {\n`;
           code += `\t\treturn err\n`;
           code += `\t}\n`;
           code += `\tif !exists {\n`;
-          code += `\t\treturn fmt.Errorf("the ${assetType.toLowerCase()} %s does not exist", id)\n`;
+          code += `\t\treturn fmt.Errorf("the ${assetType.toLowerCase()} %s does not exist", ${idParam})\n`;
           code += `\t}\n\n`;
           code += `\t${assetVarName} := ${assetType}{\n`;
-          code += `\t\tID:           id,\n`;
-          code += `\t\tDescription:  description,\n`;
-          code += `\t\tOwner:       owner,\n`;
-          code += `\t\tValue:       value,\n`;
+          structInitializers.forEach(initializer => {
+            code += `${initializer}\n`;
+          });
           code += `\t}\n`;
           code += `\t${assetVarName}JSON, err := json.Marshal(${assetVarName})\n`;
           code += `\tif err != nil {\n`;
           code += `\t\treturn err\n`;
           code += `\t}\n\n`;
-          code += `\treturn ctx.GetStub().PutState(id, ${assetVarName}JSON)\n`;
+          code += `\treturn ctx.GetStub().PutState(${idParam}, ${assetVarName}JSON)\n`;
           code += `}\n\n`;
           
           // Add helper function for asset exists if not already added
@@ -298,7 +410,7 @@ export default function ChaincodeDragAndDropBuilder() {
             code += `\tif err != nil {\n`;
             code += `\t\treturn false, fmt.Errorf("failed to read from world state: %v", err)\n`;
             code += `\t}\n\n`;
-            code += `\treturn ${assetVarName}JSON != nil, nil\n`;
+            code += `\treturn ${assetVarName}JSON != null, null\n`;
             code += `}\n\n`;
           }
           break;
@@ -402,21 +514,30 @@ export default function ChaincodeDragAndDropBuilder() {
   ];
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
+    <div className={`flex flex-col h-screen w-screen overflow-hidden ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100'}`}>
       {/* Header */}
-      <div className="bg-gray-800 text-white p-4 flex items-center justify-between">
+      <div className={`${theme === 'dark' ? 'bg-gray-900 border-b border-gray-700' : 'bg-gray-800'} text-white p-4 flex items-center justify-between`}>
         <div className="flex items-center space-x-2">
           <Database className="h-6 w-6" />
           <h1 className="text-xl font-bold">Hyperledger Fabric Chaincode Builder</h1>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex space-x-3 items-center">
+          {/* Theme toggle button */}
+          <button 
+            onClick={toggleTheme} 
+            className={`p-2 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-yellow-300' : 'bg-gray-700 text-gray-300'}`}
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+          
           <div className="flex items-center space-x-2">
             <label className="text-sm">Name:</label>
             <input 
               type="text" 
               value={chaincodeName} 
               onChange={(e) => setChaincodeName(e.target.value)}
-              className="px-2 py-1 text-black text-sm rounded"
+              className={`px-2 py-1 text-sm rounded ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white text-gray-900'}`}
             />
           </div>
           <div className="flex items-center space-x-2">
@@ -425,7 +546,7 @@ export default function ChaincodeDragAndDropBuilder() {
               type="text" 
               value={chaincodeVersion} 
               onChange={(e) => setChaincodeVersion(e.target.value)}
-              className="px-2 py-1 text-black text-sm rounded w-16"
+              className={`px-2 py-1 text-sm rounded w-16 ${theme === 'dark' ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white text-gray-900'}`}
             />
           </div>
           <button 
@@ -441,12 +562,12 @@ export default function ChaincodeDragAndDropBuilder() {
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Block palette */}
-        <div className="w-64 bg-gray-200 p-4 overflow-y-auto">
+        <div className={`w-64 ${theme === 'dark' ? 'bg-gray-800 text-gray-200' : 'bg-gray-200 text-gray-900'} p-4 flex-shrink-0 overflow-y-auto`}>
           <h2 className="font-bold mb-2">Chaincode Blocks</h2>
           
           {categories.map(category => (
             <div key={category.id} className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">{category.name}</h3>
+              <h3 className={`text-sm font-semibold ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} mb-1`}>{category.name}</h3>
               <div className="space-y-2">
                 {blocks
                   .filter(block => block.category === category.id)
@@ -468,12 +589,12 @@ export default function ChaincodeDragAndDropBuilder() {
         
         {/* Canvas area */}
         <div 
-          className="flex-1 relative bg-white border border-gray-300"
+          className={`flex-1 relative ${theme === 'dark' ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-300'} border overflow-hidden`}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >
           {canvas.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+            <div className={`absolute inset-0 flex items-center justify-center ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>
               Drag and drop chaincode blocks here
             </div>
           )}
@@ -511,14 +632,14 @@ export default function ChaincodeDragAndDropBuilder() {
         </div>
         
         {/* Properties panel */}
-        <div className="w-64 bg-gray-200 p-4 overflow-y-auto">
+        <div className={`w-64 ${theme === 'dark' ? 'bg-gray-800 text-gray-200' : 'bg-gray-200 text-gray-900'} p-4 flex-shrink-0 overflow-y-auto`}>
           {/* Asset Fields management UI */}
           <div className="mb-4">
             <h2 className="font-bold mb-2">Asset Fields</h2>
             <div className="space-y-2 mb-2">
               {assetFields.map(field => (
-                <div key={field.name} className="flex items-center justify-between bg-white rounded px-2 py-1 text-sm">
-                  <span>{field.name} <span className="text-gray-500">({field.type})</span></span>
+                <div key={field.name} className={`flex items-center justify-between ${theme === 'dark' ? 'bg-gray-700 text-white' : 'bg-white text-gray-900'} rounded px-2 py-1 text-sm`}>
+                  <span>{field.name} <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-500'}>({field.type})</span></span>
                   {['ID','Description','Owner','Value'].includes(field.name) ? null : (
                     <button onClick={() => removeAssetField(field.name)} className="text-red-500 hover:text-red-700"><Trash2 className="h-3 w-3" /></button>
                   )}
@@ -526,8 +647,26 @@ export default function ChaincodeDragAndDropBuilder() {
               ))}
             </div>
             <div className="flex space-x-1 mb-2">
-              <input type="text" placeholder="Name" value={newField.name} onChange={e => setNewField(f => ({...f, name: e.target.value}))} className="w-1/3 px-1 py-0.5 border rounded text-xs" />
-              <select value={newField.type} onChange={e => setNewField(f => ({...f, type: e.target.value}))} className="w-1/3 px-1 py-0.5 border rounded text-xs">
+              <input 
+                type="text" 
+                placeholder="Name" 
+                value={newField.name} 
+                onChange={e => setNewField(f => ({...f, name: e.target.value}))} 
+                className={`w-1/3 px-1 py-0.5 border rounded text-xs ${
+                  theme === 'dark' 
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                    : 'bg-white text-gray-900'
+                }`} 
+              />
+              <select 
+                value={newField.type} 
+                onChange={e => setNewField(f => ({...f, type: e.target.value}))} 
+                className={`w-1/3 px-1 py-0.5 border rounded text-xs ${
+                  theme === 'dark' 
+                    ? 'bg-gray-700 border-gray-600 text-white' 
+                    : 'bg-white text-gray-900'
+                }`}
+              >
                 <option value="string">string</option>
                 <option value="int">int</option>
                 <option value="float64">float64</option>
@@ -535,8 +674,23 @@ export default function ChaincodeDragAndDropBuilder() {
                 <option value="[]string">[]string</option>
                 <option value="map[string]string">map[string]string</option>
               </select>
-              <input type="text" placeholder="json tag" value={newField.jsonTag} onChange={e => setNewField(f => ({...f, jsonTag: e.target.value}))} className="w-1/3 px-1 py-0.5 border rounded text-xs" />
-              <button onClick={addAssetField} className="bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-0.5 text-xs"><Plus className="h-3 w-3" /></button>
+              <input 
+                type="text" 
+                placeholder="json tag" 
+                value={newField.jsonTag} 
+                onChange={e => setNewField(f => ({...f, jsonTag: e.target.value}))} 
+                className={`w-1/3 px-1 py-0.5 border rounded text-xs ${
+                  theme === 'dark' 
+                    ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' 
+                    : 'bg-white text-gray-900'
+                }`}
+              />
+              <button 
+                onClick={addAssetField} 
+                className="bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-0.5 text-xs"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
             </div>
           </div>
           
@@ -555,12 +709,16 @@ export default function ChaincodeDragAndDropBuilder() {
                     return (
                       <div className="space-y-2">
                         <div>
-                          <label className="block text-sm text-gray-700">Init Message:</label>
+                          <label className={`block text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>Init Message:</label>
                           <input 
                             type="text" 
                             value={props.message || ''} 
                             onChange={(e) => handleUpdateBlockProps(selectedBlockId, { message: e.target.value })}
-                            className="w-full px-2 py-1 mt-1 text-sm border rounded"
+                            className={`w-full px-2 py-1 mt-1 text-sm border rounded ${
+                              theme === 'dark' 
+                                ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                                : 'bg-white border-gray-300 text-gray-900'
+                            }`}
                           />
                         </div>
                       </div>
@@ -570,12 +728,16 @@ export default function ChaincodeDragAndDropBuilder() {
                     return (
                       <div className="space-y-2">
                         <div>
-                          <label className="block text-sm text-gray-700">Asset Type:</label>
+                          <label className={`block text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>Asset Type:</label>
                           <input 
                             type="text" 
                             value={props.assetType || 'Asset'} 
                             onChange={(e) => handleUpdateBlockProps(selectedBlockId, { assetType: e.target.value })}
-                            className="w-full px-2 py-1 mt-1 text-sm border rounded"
+                            className={`w-full px-2 py-1 mt-1 text-sm border rounded ${
+                              theme === 'dark' 
+                                ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                                : 'bg-white border-gray-300 text-gray-900'
+                            }`}
                           />
                         </div>
                       </div>
@@ -587,7 +749,9 @@ export default function ChaincodeDragAndDropBuilder() {
                   case 'query':
                     return (
                       <div className="space-y-2">
-                        <p className="text-sm italic text-gray-600">Operation uses the asset type defined in Create Asset blocks.</p>
+                        <p className={`text-sm italic ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                          Operation uses the asset type defined in Create Asset blocks.
+                        </p>
                       </div>
                     );
                     
@@ -595,27 +759,37 @@ export default function ChaincodeDragAndDropBuilder() {
                     return (
                       <div className="space-y-2">
                         <div>
-                          <label className="block text-sm text-gray-700">Event Name:</label>
+                          <label className={`block text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>Event Name:</label>
                           <input 
                             type="text" 
                             value={props.eventName || ''} 
                             onChange={(e) => handleUpdateBlockProps(selectedBlockId, { eventName: e.target.value })}
-                            className="w-full px-2 py-1 mt-1 text-sm border rounded"
+                            className={`w-full px-2 py-1 mt-1 text-sm border rounded ${
+                              theme === 'dark' 
+                                ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                                : 'bg-white border-gray-300 text-gray-900'
+                            }`}
                           />
                         </div>
                         <div>
-                          <label className="block text-sm text-gray-700">Payload:</label>
+                          <label className={`block text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>Payload:</label>
                           <textarea 
                             value={props.payload || ''} 
                             onChange={(e) => handleUpdateBlockProps(selectedBlockId, { payload: e.target.value })}
-                            className="w-full px-2 py-1 mt-1 text-sm border rounded h-24"
+                            className={`w-full px-2 py-1 mt-1 text-sm border rounded h-24 ${
+                              theme === 'dark' 
+                                ? 'bg-gray-700 border-gray-600 text-gray-100' 
+                                : 'bg-white border-gray-300 text-gray-900'
+                            }`}
                           />
                         </div>
                       </div>
                     );
                     
                   default:
-                    return <p className="text-sm italic text-gray-600">No configurable properties for this block</p>;
+                    return <p className={`text-sm italic ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                      No configurable properties for this block
+                    </p>;
                 }
               })()}
             </div>
@@ -628,8 +802,8 @@ export default function ChaincodeDragAndDropBuilder() {
       {/* Code generation modal */}
       {showCodeModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-3/4 h-3/4 flex flex-col overflow-hidden">
-            <div className="bg-gray-800 text-white p-3 flex justify-between items-center">
+          <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl w-3/4 h-3/4 max-h-full flex flex-col overflow-hidden`}>
+            <div className={`${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-800'} text-white p-3 flex justify-between items-center`}>
               <div className="flex items-center">
                 <FileText className="h-5 w-5 mr-2" />
                 <h3>Generated Chaincode</h3>
@@ -641,12 +815,12 @@ export default function ChaincodeDragAndDropBuilder() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-auto p-4 bg-gray-100">
-              <pre className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-auto h-full">
+            <div className={`flex-1 p-4 ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'} overflow-hidden`}>
+              <pre className={`${theme === 'dark' ? 'bg-gray-900 border border-gray-700' : 'bg-gray-900'} text-green-400 p-4 rounded-lg overflow-auto h-full w-full`}>
                 {generatedCode}
               </pre>
             </div>
-            <div className="bg-gray-100 p-3 flex justify-end">
+            <div className={`${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'} p-3 flex justify-end`}>
               <button 
                 onClick={() => setShowCodeModal(false)}
                 className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded mr-2"
