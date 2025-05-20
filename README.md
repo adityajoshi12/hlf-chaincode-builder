@@ -1,12 +1,77 @@
-# React + Vite
+# Hyperledger Fabric Chaincode Builder
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A visual drag-and-drop interface for generating Hyperledger Fabric chaincode in Go. This application allows developers to rapidly prototype and create chaincode by visually connecting blocks that represent different chaincode operations.
 
-Currently, two official plugins are available:
+![Hyperledger Fabric Chaincode Builder Screenshot](public/hlf-chaincode-builder.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## Expanding the ESLint configuration
+- **Visual Block Programming**: Drag and drop blocks to design your chaincode logic
+- **Multiple Block Types**: Support for core functions, asset operations, state management, crypto, identity, and events
+- **Asset Management**: 
+  - Create custom asset types with configurable fields
+  - Edit and delete asset fields, including default ones (ID, Description, Owner, Value)
+  - Define field properties including name, type, and JSON tags
+- **Code Generation**: Automatic Go chaincode generation based on your visual design
+- **Light/Dark Mode**: User-selectable theme preferences
+- **Modular Architecture**: Well-organized component structure for better maintainability
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+## Usage Guide
+
+1. **Design Your Chaincode**: 
+   - Drag blocks from the left panel onto the canvas
+   - Connect blocks to create your chaincode flow
+   - Configure block properties in the right panel
+
+2. **Define Asset Structure**:
+   - Add, edit, or delete asset fields in the property panel
+   - Customize field types and JSON tags
+
+3. **Generate Code**:
+   - Click the "Generate Code" button to view the Go chaincode
+   - Copy the generated code or export it to a file
+
+## Application Structure
+
+The application is built with a modular architecture:
+
+- `src/components/`: UI components (Header, BlockPalette, Canvas, PropertyPanel, etc.)
+- `src/utils/`: Utility functions and code generation logic
+- `src/ThemeContext.jsx`: Theme management
+
+## Development
+
+### Built With
+
+- React 19
+- Vite 6
+- TailwindCSS
+- Lucide React icons
+
+### Scripts
+
+- `npm run dev`: Start development server
+- `npm run build`: Build for production
+- `npm run preview`: Preview production build
+- `npm run lint`: Run ESLint
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the project
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Hyperledger Fabric community
+- React and Vite teams
+- All contributors to this project
