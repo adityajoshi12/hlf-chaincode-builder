@@ -1,5 +1,6 @@
 import { useTheme } from '../ThemeContext';
 import AssetFieldsManager from './AssetFieldsManager';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 export default function PropertyPanel({ 
   selectedBlockId, 
@@ -17,10 +18,75 @@ export default function PropertyPanel({
   updateAssetField
 }) {
   const { theme } = useTheme();
+  const DEFAULT_WIDTH = 256; // Default width (64 * 4 = 256px)
+  const [width, setWidth] = useState(() => {
+    // Try to get the saved width from localStorage
+    const savedWidth = localStorage.getItem('propertyPanelWidth');
+    return savedWidth ? parseInt(savedWidth, 10) : DEFAULT_WIDTH;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const minWidth = 200; // Minimum panel width in pixels
+  const maxWidth = 600; // Maximum panel width in pixels
+  const panelRef = useRef(null);
+  
+  // Handle mouse down on the resize handle
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsResizing(true);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+  
+  // Handle mouse move when resizing
+  const handleMouseMove = useCallback((e) => {
+    if (!isResizing) return;
+    const containerRect = panelRef.current.parentElement.getBoundingClientRect();
+    const newWidth = containerRect.right - e.clientX;
+    
+    // Constrain width between min and max values
+    const constrainedWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
+    setWidth(constrainedWidth);
+    
+    // Add a cursor style to the body to indicate resizing
+    document.body.style.cursor = 'ew-resize';
+  }, [isResizing]);
+  
+  // Handle mouse up to stop resizing
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+    document.body.style.cursor = 'auto'; // Reset cursor style
+  }, [handleMouseMove]);
+  
+  // Add/remove event listeners
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
 
   return (
-    <div className={`w-64 ${theme === 'dark' ? 'bg-gray-800 text-gray-200' : 'bg-gray-200 text-gray-900'} p-4 flex-shrink-0 overflow-y-auto`}>
-      {/* Asset Fields management UI */}
+    <div className="relative flex flex-shrink-0">
+      {/* Resize handle */}
+      <div 
+        className={`w-1 h-full cursor-ew-resize z-10 ${isResizing ? 'bg-blue-500' : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-300'} hover:bg-blue-400`} 
+        onMouseDown={handleMouseDown}
+        title="Drag to resize panel"
+      ></div>
+      
+      <div 
+        ref={panelRef} 
+        className={`${theme === 'dark' ? 'bg-gray-800 text-gray-200' : 'bg-gray-200 text-gray-900'} p-4 overflow-y-auto`}
+        style={{ width: `${width}px` }}
+      >
+        {/* Asset Fields management UI */}
       <AssetFieldsManager 
         assetFields={assetFields}
         removeAssetField={removeAssetField}
@@ -137,6 +203,7 @@ export default function PropertyPanel({
           Select a block to view its properties
         </p>
       )}
+      </div>
     </div>
   );
 }

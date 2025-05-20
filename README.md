@@ -14,6 +14,7 @@ A visual drag-and-drop interface for generating Hyperledger Fabric chaincode in 
   - Define field properties including name, type, and JSON tags
 - **Code Generation**: Automatic Go chaincode generation based on your visual design
 - **Light/Dark Mode**: User-selectable theme preferences
+- **Adjustable Interface**: Resizable property panel with persistent width settings
 - **Modular Architecture**: Well-organized component structure for better maintainability
 
 
@@ -27,6 +28,8 @@ A visual drag-and-drop interface for generating Hyperledger Fabric chaincode in 
 2. **Define Asset Structure**:
    - Add, edit, or delete asset fields in the property panel
    - Customize field types and JSON tags
+   - Resize the property panel by dragging its left edge
+   - Double-click the resize handle to reset to default width
 
 3. **Generate Code**:
    - Click the "Generate Code" button to view the Go chaincode
