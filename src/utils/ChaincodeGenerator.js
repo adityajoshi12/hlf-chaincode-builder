@@ -204,7 +204,7 @@ export function generateChaincodeCode(
         code += `}\n\n`;
         
         // Add helper function for asset exists if not already added
-        if (!code.includes(`${assetType}Exists`)) {
+        if (!code.includes(`func (s *SmartContract) ${assetType}Exists`)) {
           code += `// ${assetType}Exists returns true when ${assetType.toLowerCase()} exists in the ledger\n`;
           code += `func (s *SmartContract) ${assetType}Exists(ctx contractapi.TransactionContextInterface, id string) (bool, error) {\n`;
           code += `\t${assetVarName}JSON, err := ctx.GetStub().GetState(id)\n`;

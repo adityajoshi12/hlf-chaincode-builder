@@ -7,12 +7,15 @@ A visual drag-and-drop interface for generating Hyperledger Fabric chaincode in 
 ## Features
 
 - **Visual Block Programming**: Drag and drop blocks to design your chaincode logic
-- **Multiple Block Types**: Support for core functions, asset operations, state management, crypto, identity, and events
+- **Multiple Block Types**: Support for core functions, asset operations (create, read, update, delete, exists), state management, crypto, identity, and events
 - **Asset Management**: 
   - Create custom asset types with configurable fields
   - Edit and delete asset fields, including default ones (ID, Description, Owner, Value)
   - Define field properties including name, type, and JSON tags
-- **Code Generation**: Automatic Go chaincode generation based on your visual design
+- **Code Generation**: 
+  - Automatic Go chaincode generation based on your visual design
+  - Copy code to clipboard with one click
+  - Download generated code as a .go file
 - **Light/Dark Mode**: User-selectable theme preferences
 - **Adjustable Interface**: Resizable property panel with persistent width settings
 - **Modular Architecture**: Well-organized component structure for better maintainability
