@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTheme } from './ThemeContext';
 
 // Import components
@@ -34,25 +34,59 @@ export default function ChaincodeDragAndDropBuilder() {
     { id: 'emitEvent', name: 'Emit Event', category: 'events', color: 'bg-pink-600' },
   ]);
 
-  // Define state for the canvas (where blocks will be dropped)
-  const [canvas, setCanvas] = useState([]);
-  const [blockProps, setBlockProps] = useState({});
-  const [selectedBlockId, setSelectedBlockId] = useState(null);
-  const [chaincodeName, setChaincodeName] = useState('MyChaincode');
-  const [chaincodeVersion, setChaincodeVersion] = useState('1.0');
+  // --- LocalStorage Hydration for initial state ---
+  function getInitialProjectState() {
+    const saved = localStorage.getItem('hlfChaincodeBuilderProject');
+    if (saved) {
+      try {
+        const project = JSON.parse(saved);
+        return {
+          canvas: Array.isArray(project.canvas) ? project.canvas : [],
+          blockProps: typeof project.blockProps === 'object' ? project.blockProps : {},
+          assetFields: Array.isArray(project.assetFields) ? project.assetFields : [
+            { name: 'ID', type: 'string', jsonTag: 'id' },
+            { name: 'Description', type: 'string', jsonTag: 'description' },
+            { name: 'Owner', type: 'string', jsonTag: 'owner' },
+            { name: 'Value', type: 'int', jsonTag: 'value' }
+          ],
+          newField: typeof project.newField === 'object' ? project.newField : { name: '', type: 'string', jsonTag: '' },
+          editingField: project.editingField || null,
+          chaincodeName: project.chaincodeName || 'MyChaincode',
+          chaincodeVersion: project.chaincodeVersion || '1.0',
+          selectedBlockId: project.selectedBlockId || null,
+        };
+      } catch { /* ignore parse errors */ }
+    }
+    // Defaults
+    return {
+      canvas: [],
+      blockProps: {},
+      assetFields: [
+        { name: 'ID', type: 'string', jsonTag: 'id' },
+        { name: 'Description', type: 'string', jsonTag: 'description' },
+        { name: 'Owner', type: 'string', jsonTag: 'owner' },
+        { name: 'Value', type: 'int', jsonTag: 'value' }
+      ],
+      newField: { name: '', type: 'string', jsonTag: '' },
+      editingField: null,
+      chaincodeName: 'MyChaincode',
+      chaincodeVersion: '1.0',
+      selectedBlockId: null,
+    };
+  }
+
+  const initial = getInitialProjectState();
+  const [canvas, setCanvas] = useState(initial.canvas);
+  const [blockProps, setBlockProps] = useState(initial.blockProps);
+  const [assetFields, setAssetFields] = useState(initial.assetFields);
+  const [newField, setNewField] = useState(initial.newField);
+  const [editingField, setEditingField] = useState(initial.editingField);
+  const [chaincodeName, setChaincodeName] = useState(initial.chaincodeName);
+  const [chaincodeVersion, setChaincodeVersion] = useState(initial.chaincodeVersion);
+  const [selectedBlockId, setSelectedBlockId] = useState(initial.selectedBlockId);
   const [generatedCode, setGeneratedCode] = useState('');
   const [showCodeModal, setShowCodeModal] = useState(false);
   
-  // Add state for custom asset fields
-  const [assetFields, setAssetFields] = useState([
-    { name: 'ID', type: 'string', jsonTag: 'id' },
-    { name: 'Description', type: 'string', jsonTag: 'description' },
-    { name: 'Owner', type: 'string', jsonTag: 'owner' },
-    { name: 'Value', type: 'int', jsonTag: 'value' }
-  ]);
-  const [newField, setNewField] = useState({ name: '', type: 'string', jsonTag: '' });
-  const [editingField, setEditingField] = useState(null); // null when not editing, or the name of the field being edited
-
   // Function to handle drag start
   const handleDragStart = (e, blockId) => {
     e.dataTransfer.setData('blockId', blockId);
@@ -207,6 +241,40 @@ export default function ChaincodeDragAndDropBuilder() {
     setShowCodeModal(true);
   };
   
+  // --- Import/Export Project (JSON) ---
+  const exportProject = () => {
+    const project = {
+      canvas,
+      blockProps,
+      assetFields,
+      newField,
+      editingField,
+      chaincodeName,
+      chaincodeVersion
+    };
+    const json = JSON.stringify(project, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${chaincodeName || 'chaincode'}-project.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const importProject = (project) => {
+    if (!project) return;
+    setCanvas(Array.isArray(project.canvas) ? project.canvas : []);
+    setBlockProps(typeof project.blockProps === 'object' ? project.blockProps : {});
+    setAssetFields(Array.isArray(project.assetFields) ? project.assetFields : []);
+    setNewField(typeof project.newField === 'object' ? project.newField : { name: '', type: 'string', jsonTag: '' });
+    setEditingField(project.editingField || null);
+    setChaincodeName(project.chaincodeName || 'MyChaincode');
+    setChaincodeVersion(project.chaincodeVersion || '1.0');
+  };
+  
   // Function to get default properties for a block type
   const getDefaultPropsForBlock = (blockId) => {
     switch(blockId) {
@@ -231,6 +299,22 @@ export default function ChaincodeDragAndDropBuilder() {
     { id: 'events', name: 'Events' },
   ];
 
+  // --- LocalStorage Persistence ---
+  // Save to localStorage on state change
+  useEffect(() => {
+    const project = {
+      canvas,
+      blockProps,
+      assetFields,
+      newField,
+      editingField,
+      chaincodeName,
+      chaincodeVersion,
+      selectedBlockId
+    };
+    localStorage.setItem('hlfChaincodeBuilderProject', JSON.stringify(project));
+  }, [canvas, blockProps, assetFields, newField, editingField, chaincodeName, chaincodeVersion, selectedBlockId]);
+
   return (
     <div className={`flex flex-col h-screen w-screen overflow-hidden ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100'}`}>
       {/* Header */}
@@ -240,6 +324,8 @@ export default function ChaincodeDragAndDropBuilder() {
         chaincodeVersion={chaincodeVersion}
         setChaincodeVersion={setChaincodeVersion}
         generateChaincode={generateChaincode}
+        onExportProject={exportProject}
+        onImportProject={importProject}
       />
       
       {/* Main content */}

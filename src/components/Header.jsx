@@ -1,3 +1,4 @@
+import React from 'react';
 import { Database, Code, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../ThemeContext';
 
@@ -6,10 +7,30 @@ export default function Header({
   setChaincodeName, 
   chaincodeVersion, 
   setChaincodeVersion, 
-  generateChaincode 
+  generateChaincode,
+  onExportProject,
+  onImportProject
 }) {
   const { theme, toggleTheme } = useTheme();
-  
+  const fileInputRef = React.useRef();
+
+  // Handler for file input change
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const json = JSON.parse(event.target.result);
+          onImportProject(json);
+        } catch {
+          alert('Invalid project file.');
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
   return (
     <div className={`${theme === 'dark' ? 'bg-gray-900 border-b border-gray-700' : 'bg-gray-800'} text-white p-4 flex items-center justify-between`}>
       <div className="flex items-center space-x-2">
@@ -17,6 +38,26 @@ export default function Header({
         <h1 className="text-xl font-bold">Hyperledger Fabric Chaincode Builder</h1>
       </div>
       <div className="flex space-x-3 items-center">
+        {/* Import/Export buttons */}
+        <button
+          onClick={onExportProject}
+          className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm mr-1"
+        >
+          Export Project
+        </button>
+        <button
+          onClick={() => fileInputRef.current && fileInputRef.current.click()}
+          className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm mr-2"
+        >
+          Import Project
+        </button>
+        <input
+          type="file"
+          accept="application/json"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
         {/* Theme toggle button */}
         <button 
           onClick={toggleTheme} 
