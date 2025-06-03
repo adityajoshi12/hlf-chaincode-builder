@@ -117,24 +117,35 @@ export function generateChaincodeCode(
         
       case 'createAsset': {
         const assetType = props.assetType || globalAssetType;
-        // Convert first letter to lowercase for variable names
         const assetVarName = assetType.charAt(0).toLowerCase() + assetType.slice(1);
-        
+        // If any checkACL block exists, insert ABAC check at the top
+        const hasACL = canvas.some(b => b.blockId === 'checkACL');
+        let aclCheckCode = '';
+        if (hasACL) {
+          // Use the first checkACL block's props for attribute/value/message
+          const aclBlock = canvas.find(b => b.blockId === 'checkACL');
+          const aclProps = blockProps[aclBlock.instanceId] || {};
+          const attribute = aclProps.attribute || 'role';
+          const value = aclProps.value || 'admin';
+          const errorMessage = aclProps.errorMessage || `submitting client not authorized to create asset, does not have ${value} ${attribute}`;
+          aclCheckCode += `\t// ABAC: Check client attribute '${attribute}' == '${value}'\n`;
+          aclCheckCode += `\terr := ctx.GetClientIdentity().AssertAttributeValue("${attribute}", "${value}")\n`;
+          aclCheckCode += `\tif err != nil {\n\t\treturn fmt.Errorf(\`${errorMessage}\`)\n\t}\n`;
+        }
         code += `// Create${assetType} creates a new ${assetType.toLowerCase()} in the ledger\n`;
         
         // Generate function parameters dynamically based on assetFields
         const { paramList, structInitializers } = generateFunctionParams(assetFields);
         
         code += `func (s *SmartContract) Create${assetType}(ctx contractapi.TransactionContextInterface, ${paramList.join(', ')}) error {\n`;
+        if (aclCheckCode) code += aclCheckCode.replace(/\\"/g, '"');
         code += `\t${assetVarName} := ${assetType}{\n`;
         structInitializers.forEach(initializer => {
           code += `${initializer}\n`;
         });
         code += `\t}\n\n`;
         code += `\t${assetVarName}JSON, err := json.Marshal(${assetVarName})\n`;
-        code += `\tif err != nil {\n`;
-        code += `\t\treturn err\n`;
-        code += `\t}\n\n`;
+        code += `\tif err != nil {\n\t\treturn err\n\t}\n\n`;
         
         // Use the ID field for the key in PutState
         const idField = findIdField(assetFields);
@@ -265,6 +276,10 @@ export function generateChaincodeCode(
         code += `\t}\n\n`;
         code += `\treturn ${assetsVarName}, nil\n`;
         code += `}\n\n`;
+        break;
+      }
+      
+      case 'checkACL': {
         break;
       }
         

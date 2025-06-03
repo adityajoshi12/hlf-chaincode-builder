@@ -9,10 +9,13 @@ export default function Header({
   setChaincodeVersion, 
   generateChaincode,
   onExportProject,
-  onImportProject
+  onImportProject,
+  blockPresets = [],
+  insertPreset
 }) {
   const { theme, toggleTheme } = useTheme();
   const fileInputRef = React.useRef();
+  const [presetOpen, setPresetOpen] = React.useState(false);
 
   // Handler for file input change
   const handleFileChange = (e) => {
@@ -38,6 +41,29 @@ export default function Header({
         <h1 className="text-xl font-bold">Hyperledger Fabric Chaincode Builder</h1>
       </div>
       <div className="flex space-x-3 items-center">
+        {/* Preset/Template Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setPresetOpen((v) => !v)}
+            className="bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded text-sm mr-1"
+          >
+            Templates
+          </button>
+          {presetOpen && (
+            <div className={`absolute right-0 mt-2 w-56 rounded shadow-lg z-50 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} border border-gray-300`}> 
+              {blockPresets.map((preset, i) => (
+                <button
+                  key={preset.name}
+                  onClick={() => { insertPreset(preset); setPresetOpen(false); }}
+                  className={`w-full text-left px-4 py-2 hover:bg-indigo-100 ${theme === 'dark' ? 'hover:bg-gray-700 text-white' : 'text-gray-900'}`}
+                >
+                  <div className="font-semibold">{preset.name}</div>
+                  <div className="text-xs opacity-70">{preset.description}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {/* Import/Export buttons */}
         <button
           onClick={onExportProject}

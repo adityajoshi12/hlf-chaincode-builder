@@ -284,6 +284,9 @@ export default function ChaincodeDragAndDropBuilder() {
         return { assetType: "Asset" };
       case 'emitEvent':
         return { eventName: "NewEvent", payload: "{}" };
+      case 'checkACL':
+        // Default ABAC check: attribute and value
+        return { attribute: 'role', value: 'admin', errorMessage: 'Access denied: insufficient attributes' };
       default:
         return {};
     }
@@ -298,6 +301,98 @@ export default function ChaincodeDragAndDropBuilder() {
     { id: 'identity', name: 'Identity & Access' },
     { id: 'events', name: 'Events' },
   ];
+
+  // --- Block Templates & Presets ---
+  const blockPresets = [
+    {
+      name: 'Basic CRUD',
+      description: 'Create, Read, Update, Delete Asset',
+      blocks: [
+        { id: 'createAsset', x: 100, y: 100 },
+        { id: 'readAsset', x: 300, y: 100 },
+        { id: 'updateAsset', x: 500, y: 100 },
+        { id: 'deleteAsset', x: 700, y: 100 }
+      ]
+    },
+    {
+      name: 'Asset with Query',
+      description: 'CRUD + Query Assets',
+      blocks: [
+        { id: 'createAsset', x: 100, y: 100 },
+        { id: 'readAsset', x: 300, y: 100 },
+        { id: 'updateAsset', x: 500, y: 100 },
+        { id: 'deleteAsset', x: 700, y: 100 },
+        { id: 'query', x: 900, y: 100 }
+      ]
+    },
+    {
+      name: 'Init + CRUD',
+      description: 'InitLedger and CRUD blocks',
+      blocks: [
+        { id: 'init', x: 100, y: 100 },
+        { id: 'createAsset', x: 300, y: 100 },
+        { id: 'readAsset', x: 500, y: 100 },
+        { id: 'updateAsset', x: 700, y: 100 },
+        { id: 'deleteAsset', x: 900, y: 100 }
+      ]
+    },
+    // --- ABAC Templates ---
+    {
+      name: 'CRUD with ABAC',
+      description: 'CRUD operations with Attribute-Based Access Control check',
+      blocks: [
+        { id: 'createAsset', x: 300, y: 100 },
+        { id: 'checkACL', x: 300, y: 180 },
+        { id: 'readAsset', x: 500, y: 100 },
+        { id: 'updateAsset', x: 700, y: 100 },
+        { id: 'deleteAsset', x: 900, y: 100 }
+      ]
+    },
+    {
+      name: 'Init + CRUD + ABAC',
+      description: 'Init, CRUD, and ABAC check blocks',
+      blocks: [
+        { id: 'init', x: 100, y: 100 },
+        { id: 'createAsset', x: 300, y: 100 },
+        { id: 'checkACL', x: 300, y: 180 },
+        { id: 'readAsset', x: 500, y: 100 },
+        { id: 'updateAsset', x: 700, y: 100 },
+        { id: 'deleteAsset', x: 900, y: 100 }
+      ]
+    },
+    {
+      name: 'ABAC Only Example',
+      description: 'Minimal ABAC check, create, and read operation',
+      blocks: [
+        { id: 'createAsset', x: 300, y: 100 },
+        { id: 'checkACL', x: 300, y: 180 },
+        { id: 'readAsset', x: 500, y: 100 }
+      ]
+    }
+  ];
+
+  const insertPreset = (preset) => {
+    // Remove all blocks and add the preset blocks
+    const now = Date.now();
+    const newBlocks = preset.blocks.map((b, i) => {
+      const block = blocks.find(bl => bl.id === b.id);
+      return {
+        instanceId: `${b.id}_${now + i}`,
+        blockId: b.id,
+        name: block ? block.name : b.id,
+        color: block ? block.color : 'bg-gray-400',
+        position: { x: b.x, y: b.y }
+      };
+    });
+    setCanvas(newBlocks);
+    // Set default props for each block
+    const newBlockProps = {};
+    newBlocks.forEach(b => {
+      newBlockProps[b.instanceId] = getDefaultPropsForBlock(b.blockId);
+    });
+    setBlockProps(newBlockProps);
+    setSelectedBlockId(null);
+  };
 
   // --- LocalStorage Persistence ---
   // Save to localStorage on state change
@@ -326,6 +421,8 @@ export default function ChaincodeDragAndDropBuilder() {
         generateChaincode={generateChaincode}
         onExportProject={exportProject}
         onImportProject={importProject}
+        blockPresets={blockPresets}
+        insertPreset={insertPreset}
       />
       
       {/* Main content */}
